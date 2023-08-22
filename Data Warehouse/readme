@@ -1,1 +1,16 @@
+Welcome to the Data Warehouse section of the Atlanta Crime Project. Here, our main goal is to use structured data analysis techniques to study crime trends and patterns in Atlanta.
 
+Data Preparation:
+
+Our journey begins with raw crime data stored in CSVfiles_1000.zip. To make sense of this vast information, initial data cleansing and preprocessing are carried out in the Data Processing.ipynb Jupyter notebook. This transformation ensures that our data is ready for structured storage and further analysis.
+
+SQL Structuring and Views:
+
+Once data preprocessing is complete, it's time to insert this data into our data warehouse. Using SQL scripts tailored for SSMS (Visual Studio), we engage with:
+
+BuildLoad Tables.sql to construct and load tables.
+InsertData.sql for inserting our cleansed data into the appropriate tables.
+CreateViews.sql to generate essential views, simplifying data queries and extraction.
+Analysis and Reports:
+
+The refined data enables us to create comprehensive reports. Dive into AtlantaCrimeProject Report.pdf for a complete overview of our findings. For those interested in association patterns, Association Rule Mining Report.pdf offers valuable insights. For an interactive data exploration experience, you can use AtlantaCrimeProject.pbix in Power BI.
