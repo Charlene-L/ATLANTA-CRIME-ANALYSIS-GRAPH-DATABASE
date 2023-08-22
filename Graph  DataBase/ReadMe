@@ -1,1 +1,13 @@
+Welcome to the Graph Database portion of the Atlanta Crime Project. In this segment, we tap into the potential of graph databases to decipher relationships and patterns in crime data that might not be evident in traditional setups.
 
+Data Adaptation for Graphs:
+
+Even though our primary data source remains the same, the DataProcessingP2.ipynb Jupyter notebook outlines the special preprocessing required for graph databases. The nature of nodes and relationships demands a unique approach, and this notebook ensures our data adheres to these needs.
+
+Graph Building and Queries:
+
+With our data prepared, the next step is to shape it into a graph structure. Using the BuildLoad Tables.sql script tailored for DataGrip, we build the essential nodes and connections. The Cypher script.txt for Neo4j is a valuable asset, aiding us in crafting intricate nodes and relationships specific to our crime data.
+
+Graph Analysis and Presentations:
+
+Graph databases offer a different perspective, and our findings from this exploration are collated in the Project2_GraphDB.pdf report. For a summarized version with key takeaways, Project2_Presentation.pdf serves as a visual treat and informative resource
