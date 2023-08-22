@@ -1,0 +1,128 @@
+## Load the data, create nodes and relationships
+LOAD CSV WITH HEADERS FROM 'file:///data.csv' AS row
+MERGE (z:Zone {Police_Area: "Zone" + row.ZoneKey})
+MERGE (b:Beat {Beat: row.Beat})
+MERGE (n:Neighborhood {Neighborhood: row.Neighborhood})
+MERGE (npu:NPU {NPU: row.NPU})
+MERGE (p:Property_Type {Type: row.PropertyType})
+MERGE (m:Month {Month: row.Month})
+MERGE (y:Year {Year: row.Year})
+MERGE (ct:Crime_Type {Type: row.CrimeType})
+MERGE (l:Location {Location: row.Location})
+MERGE (c:Crime {Crime: row.Crime})
+MERGE (b)-[:BELONG_TO]->(z)
+MERGE (c)-[:TOOK_PLACE_ON]->(b)
+MERGE (c)-[:HAPPENED_IN]->(n)
+MERGE (n)-[:PART_OF]->(npu)
+MERGE (c)-[:HAPPENED_AT]->(p)
+MERGE (c)-[:OCCURED_AT]->(m)
+MERGE (c)-[:OCCURED_IN]->(y)
+MERGE (m)-[:CONSIST_OF]->(y)
+MERGE (c)-[:IS_A]->(ct)
+MERGE (l)<-[:LOCATED_IN]-(b)
+MERGE (l)-[:LOCATED_AT]->(n)
+
+LOAD CSV WITH HEADERS FROM 'file:///zones.csv' AS row
+MERGE (z1:Zone {Police_Area: "Zone" + row.ZoneKey})
+MERGE (z2:Zone {Police_Area: "Zone" + row.AdjacentZoneKey})
+MERGE (z1)-[:ADJACENT]->(z2)
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~                                
+# Queries
+## Q1:How many crimes are recorded for a given crime type in a specified neighbourhood for a particular period?
+MATCH (ct:Crime_Type {Type: 'LARCENY-FROM VEHICLE'})<-[:IS_A]-(c:Crime)-[:OCCURED_IN]->(y:Year), 
+(c)-[:OCCURED_AT]->(m:Month)
+MATCH (n:Neighborhood {Neighborhood: 'Downtown'})
+MATCH (c)-[:HAPPENED_IN]->(n)
+WHERE (y.Year = '2009' AND m.Month >= '1') OR (y.Year = '2010' AND m.Month < '1')
+RETURN count(c) AS Crimes_Count
+
+## Q2:Find the neighbourhoods that share the same crime types, organise in decending order of the number of common crime types.
+MATCH (n:Neighborhood)<-[:HAPPENED_IN]-(c:Crime)-[:IS_A]->(ct:Crime_Type)
+WITH n, COLLECT(DISTINCT ct.Type) as crimeTypes
+WITH n, crimeTypes, SIZE(crimeTypes) as numOfCrimeTypes
+ORDER BY numOfCrimeTypes DESC
+WITH COLLECT(DISTINCT n.Neighborhood) as neighborhoods, crimeTypes, numOfCrimeTypes
+WHERE SIZE(neighborhoods) >= 2
+RETURN neighborhoods, [ct IN crimeTypes | ct] as SharedCrimeTypes, numOfCrimeTypes
+ORDER BY numOfCrimeTypes DESC
+
+## Q3:Return the top 5 neighbourhoods for a specified crime for a specified duration.
+MATCH (ct:Crime_Type {Type: 'LARCENY-FROM VEHICLE'})<-[:IS_A]-(c:Crime)-[:OCCURED_IN]->(y:Year), (c)-[:OCCURED_AT]->(m:Month)
+WHERE (y.Year = '2009' AND m.Month >= '1') OR (y.Year = '2010' AND m.Month < '1')
+MATCH (c)-[:HAPPENED_IN]->(n:Neighborhood)
+RETURN n.Neighborhood AS Neighborhood, COUNT(*) AS Crime_Count
+ORDER BY Crime_Count DESC
+LIMIT 5
+
+## Q4:Find the types of crimes for each property type. 
+MATCH (p:Property_Type)-[:HAPPENED_AT]-(c:Crime)-[:IS_A]->(ct:Crime_Type)
+RETURN p.Type AS Property_Type, collect(distinct ct.Type) AS Crime_Types
+
+## Q5-1:Which month of a specified year has the highest crime rate?Record for each beat
+MATCH (b:Beat)-[:BELONG_TO]->(z:Zone),
+      (c:Crime)-[:TOOK_PLACE_ON]->(b),
+      (m:Month)<-[:OCCURED_AT]-(c),
+      (y:Year {Year: '2009'})<-[:OCCURED_IN]-(c)
+WITH b, m, COUNT(c) AS crimes
+RETURN b.Beat AS Beat, m.Month AS Month, MAX(crimes) AS Highest_Crime_Rate
+ORDER BY Highest_Crime_Rate DESC
+LIMIT 1
+
+## Q5-2:Record for each zone
+MATCH (b:Beat)-[:BELONG_TO]->(z:Zone),
+      (c:Crime)-[:TOOK_PLACE_ON]->(b),
+      (m:Month)<-[:OCCURED_AT]-(c),
+      (y:Year {Year: '2009'})<-[:OCCURED_IN]-(c)
+WITH z, m, COUNT(c) AS crimes
+RETURN z.Police_Area AS Zone, m.Month AS Month, MAX(crimes) AS Highest_Crime_Rate
+ORDER BY Highest_Crime_Rate DESC
+LIMIT 1
+
+## Q6:Find the zones that have are adjacent and sharing the same high crime months.  
+MATCH (z:Zone)-[:ADJACENT]->(az:Zone)
+MATCH (z)<-[:BELONG_TO]-(b:Beat)<-[:TOOK_PLACE_ON]-(c:Crime)-[:OCCURED_AT]->(m:Month), (m)-[:CONSIST_OF]->(y:Year)
+WITH z.Police_Area AS Zone, m.Month AS Month, y.Year AS Year, COUNT(c) AS CrimeCount
+ORDER BY CrimeCount DESC
+WITH Zone, Month, Year, MAX(CrimeCount) AS MaxCrimeCount
+WITH COLLECT({Zone: Zone, Month: Month, Year: Year, CrimeCount: MaxCrimeCount}) AS ZoneData
+MATCH (z:Zone)-[:ADJACENT]->(az:Zone)
+WITH ZoneData, z.Police_Area AS Zone, az.Police_Area AS AdjacentZone
+UNWIND ZoneData AS zd1
+UNWIND ZoneData AS zd2
+WITH zd1, zd2, Zone, AdjacentZone
+WHERE zd1.Zone = Zone AND zd2.Zone = AdjacentZone AND zd1.Month = zd2.Month AND zd1.Year = zd2.Year
+RETURN zd1.Zone AS Zone, zd2.Zone AS AdjacentZone, zd1.Month AS SharedHighCrimeMonth, zd1.Year AS Year
+ORDER BY Year, Zone, AdjacentZone, SharedHighCrimeMonth;
+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# Extra Queries
+##Q1:The total number of crimes each NPU
+MATCH (c:Crime)-[:HAPPENED_IN]->(n:Neighborhood)-[:PART_OF]->(npu:NPU)
+RETURN npu.NPU AS Neighborhood_Planning_Unit, COUNT(c) AS Total_Crimes
+ORDER BY Total_Crimes DESC
+
+## Q2:Based on Query 1, find the NPU with the highest number of crimes and list the top five neighbourhoods with the highest number of crimes in that NPU
+MATCH (npu:NPU {NPU: 'M'})<-[:PART_OF]-(n:Neighborhood)<-[:HAPPENED_IN]-(c:Crime)
+WITH n, COUNT(c) AS totalCrimes
+ORDER BY totalCrimes DESC
+LIMIT 5
+RETURN n.Neighborhood AS Neighborhood, totalCrimes AS TotalCrimes
+
+## Q3:Find the average number of crimes per NPU, sorted by crime type
+MATCH (npu:NPU)<-[:PART_OF]-(n:Neighborhood)<-[:HAPPENED_IN]-(c:Crime)-[:IS_A]->(ct:Crime_Type)
+RETURN npu.NPU AS NPU, ct.Type AS CrimeType, count(c) AS CrimeCount, count(c) / toFloat(count(DISTINCT n)) AS AverageCrimesPerNeighborhood
+ORDER BY NPU, CrimeType;
+
+## Q4:All crime types that occurred in 2012 and their corresponding crime IDs
+MATCH (y:Year {Year: '2012'})
+MATCH (c:Crime)-[:OCCURED_IN]->(y)
+MATCH (c)-[:IS_A]->(ct:Crime_Type)
+RETURN ct.Type AS Crime_Type, c.Crime AS Crime
+
+MATCH (y:Year {Year: '2012'})
+MATCH (c:Crime)-[:OCCURED_IN]->(y)
+MATCH (c)-[:IS_A]->(ct:Crime_Type)
+RETURN ct, c
+
+
